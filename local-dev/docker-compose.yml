@@ -1,0 +1,88 @@
+name: erp-local
+
+services:
+  legacy-ofbiz-db:
+    image: postgres:13
+    container_name: legacy-ofbiz-db
+    restart: "no"
+    ports:
+      - "15432:5432"
+    volumes:
+      - ../docker/examples/postgres-demo/postgres-initdb.d:/docker-entrypoint-initdb.d:ro
+    env_file:
+      - ../docker/examples/postgres-demo/postgres.env
+      - ../docker/examples/postgres-demo/ofbiz-postgres.env
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  legacy-ofbiz-app:
+    image: ofbiz-docker
+    container_name: legacy-ofbiz-app
+    restart: "no"
+    entrypoint: ["sh", "-c", "rm -f /ofbiz/runtime/container_state/config_applied && exec /ofbiz/docker-entrypoint.sh \"$$@\"", "--"]
+    command: ["bin/ofbiz"]
+    depends_on:
+      legacy-ofbiz-db:
+        condition: service_healthy
+    ports:
+      - "18443:8443"
+    volumes:
+      - ./ofbiz-hooks/after-config-applied.d:/docker-entrypoint-hooks/after-config-applied.d:ro
+      - ./logs/legacy-ofbiz:/ofbiz/runtime/logs
+      - ../themes/common-theme/webapp/common-theme/js/node_modules:/ofbiz/themes/common-theme/webapp/common-theme/js/node_modules:ro
+    env_file:
+      - ../docker/examples/postgres-demo/ofbiz-postgres.env
+    environment:
+      OFBIZ_DATA_LOAD: demo
+      OFBIZ_POSTGRES_HOST: legacy-ofbiz-db
+      OFBIZ_HOST: localhost
+      OFBIZ_CONTENT_URL_PREFIX: https://localhost:18443
+
+  modern-notification-service:
+    build:
+      context: ../services/notification-service
+    image: modern-notification-service:local
+    container_name: modern-notification-service
+    restart: "no"
+    environment:
+      PORT: "8080"
+      SERVICE_NAME: modern-notification-service
+
+  modern-accounting-invoice-service:
+    build:
+      context: ../services/accounting-invoice-service
+    image: modern-accounting-invoice-service:local
+    container_name: modern-accounting-invoice-service
+    restart: "no"
+    depends_on:
+      legacy-ofbiz-db:
+        condition: service_healthy
+    env_file:
+      - ../docker/examples/postgres-demo/ofbiz-postgres.env
+    environment:
+      PORT: "8080"
+      SERVICE_NAME: modern-accounting-invoice-service
+      DB_HOST: legacy-ofbiz-db
+
+  modern-gateway:
+    build:
+      context: ./gateway
+    image: modern-gateway:local
+    container_name: modern-gateway
+    restart: "no"
+    depends_on:
+      - legacy-ofbiz-app
+      - modern-notification-service
+      - modern-accounting-invoice-service
+    ports:
+      - "18080:8080"
+    command: >
+      sh -c "openssl req -x509 -nodes -days 365 -newkey rsa:2048
+      -keyout /tmp/local-gateway.key -out /tmp/local-gateway.crt
+      -subj '/CN=localhost' >/dev/null 2>&1
+      && nginx -g 'daemon off;'"
+    volumes:
+      - ./gateway/nginx.conf:/etc/nginx/conf.d/default.conf:ro

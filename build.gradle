@@ -46,6 +46,29 @@ sonar {
     properties {
         property "sonar.projectKey", "e-corp-demo_ofbiz-framework"
         property "sonar.organization", "e-corp-demo"
+        property "sonar.sources", [
+                'applications',
+                'framework',
+                'themes',
+                'services',
+                'local-dev',
+                'migration',
+                '.github',
+                'build.gradle',
+                'README.md',
+                '.asf.yaml',
+        ].findAll { file(it).exists() }.join(',')
+        property "sonar.exclusions", [
+                '**/build/**',
+                '**/.gradle/**',
+                '**/node_modules/**',
+                '**/runtime/**',
+                '**/plugins/**',
+                '**/src/test/**',
+                '**/testdef/**',
+                '**/__pycache__/**',
+                '**/*.pyc',
+        ].join(',')
     }
 }
 
@@ -167,14 +190,16 @@ javadoc {
         source '17'
         encoding 'UTF-8'
         charSet 'UTF-8'
-        // Those external Javadoc links should correspond to the actual
-        // versions declared in the 'dependencies' block.
-        links(
-            'https://docs.oracle.com/en/java/javase/17/docs/api/',
-            'https://tomcat.apache.org/tomcat-10.1-doc/servletapi/',
-            'https://docs.groovy-lang.org/docs/groovy-4.0.22/html/api',
-            'https://commons.apache.org/proper/commons-cli/apidocs'
-        )
+        if (!project.hasProperty('disableJavadocExternalLinks')) {
+            // Those external Javadoc links should correspond to the actual
+            // versions declared in the 'dependencies' block.
+            links(
+                'https://docs.oracle.com/en/java/javase/17/docs/api/',
+                'https://tomcat.apache.org/tomcat-10.1-doc/servletapi/',
+                'https://docs.groovy-lang.org/docs/groovy-4.0.22/html/api',
+                'https://commons.apache.org/proper/commons-cli/apidocs'
+            )
+        }
     }
     options as StandardJavadocDocletOptions
     // Generate Javadocs quietly, validate everything except missing documentation

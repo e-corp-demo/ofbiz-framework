@@ -39,5 +39,8 @@ desktop.ini
 .*.swo
 *.patch
 node_modules/
+__pycache__/
+*.py[cod]
 /docs/asciidoc/images/
 docker/examples/postgres-demo/logs/
+local-dev/logs/
